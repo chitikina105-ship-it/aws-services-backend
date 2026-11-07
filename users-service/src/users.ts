@@ -30,9 +30,32 @@ const dynamoDB = DynamoDBDocumentClient.from(client);
 
 const TABLE_NAME = process.env.TABLE_NAME ?? "Users";
 
+const hasAdminGroup = (event: APIGatewayProxyEvent): boolean => {
+  const groupsClaim =
+    event.requestContext.authorizer?.claims?.["cognito:groups"];
+
+  if (typeof groupsClaim === "string") {
+    return groupsClaim
+      .split(",")
+      .map(group => group.trim())
+      .includes("admin");
+  }
+
+  if (Array.isArray(groupsClaim)) {
+    return groupsClaim.includes("admin");
+  }
+
+  return false;
+};
+
 const handleRequest = async (
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> => {
+
+  logger.info("Event received by Lambda", {
+    event: JSON.stringify(event, null, 2),
+  });
+
   const method = event.httpMethod;
   const id = event.pathParameters?.id;
   const requestContext = {
@@ -44,6 +67,22 @@ const handleRequest = async (
   logger.info("User request received", requestContext);
 
   try {
+    const isMutation =
+      method === "POST" ||
+      ((method === "PUT" || method === "DELETE") && Boolean(id));
+
+    if (isMutation && !hasAdminGroup(event)) {
+      logger.warn("User mutation forbidden", {
+        ...requestContext,
+        userId: id,
+        reason: "Admin group required",
+      });
+      return {
+        statusCode: 403,
+        body: JSON.stringify({ message: "Admin group required" }),
+      };
+    }
+
     // GET /users
     if (method === "GET" && !id) {
       logger.info("Listing users", requestContext);

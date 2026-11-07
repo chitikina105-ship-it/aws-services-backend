@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc"
+    "build": "tsc",
+    "build:lambda": "npm run build && powershell -Command \"if (Test-Path function.zip) { Remove-Item function.zip }; Compress-Archive -Path dist\\*,node_modules,package.json -DestinationPath function.zip\""
   },
   "keywords": [],
   "author": "",
